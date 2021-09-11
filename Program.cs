@@ -2,13 +2,15 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Text.Json;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.ComponentModel;
 using Utilities;
 using Items;
 using Characters;
 using Spells;
 using Scenes;
-using System.Runtime.CompilerServices;
-using System.ComponentModel;
 
 
 
@@ -25,40 +27,27 @@ namespace Items
 
     public abstract class Equipment : Item
     {
-        public Character.EquipSlot[] requiredSlots;
+        public Character.EquipSlot requiredSlot;
         public int speed = 0;
 
         public virtual void Equip(Character character)
-        {
-            foreach (Character.EquipSlot requiredSlot in requiredSlots)
-            {
-                if (character.equipment.ContainsKey(requiredSlot))
-                    character.equipment[requiredSlot] = this;
-                else
-                    character.equipment.Add(requiredSlot, this);
-            }
-
+        {            
+            character.equipment.Add(requiredSlot, this);
             character.speed.SetModifier(speed, this);
         }
 
         public virtual void Unequip(Character character)
         {
-            foreach (Character.EquipSlot requiredSlot in requiredSlots)
-            {
-                character.equipment[requiredSlot] = null;
-            }
-
+            character.equipment.Remove(requiredSlot);
             foreach (Stat stat in character.stats)
-            {
                 stat.RemoveModifierFromSource(this);
-            }
         }
     }
 
     #region Weapons
     public abstract class Weapon : Equipment
-    {       
-        public enum DamageType { Slashing, Bludgeoning, Piercing }
+    {
+        public enum DamageType { Slashing, Bludgeoning, Piercing, None }
 
         public DamageType damageType; // Type of damage (Slashing, Piercing, ecc.)
         public DamageType weakness;
@@ -69,13 +58,13 @@ namespace Items
 
         public Weapon()
         {
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Weapon };
+            requiredSlot = Character.EquipSlot.Weapon;
         }
 
-        public Weapon(string name, Character.EquipSlot[] requiredSlots, int attack, DamageType damageType, DamageType weakness, int speed, int rndRange, int precision, int value)
+        public Weapon(string name, Character.EquipSlot requiredSlot, int attack, DamageType damageType, DamageType weakness, int speed, int rndRange, int precision, int value)
         {
             this.name = name;
-            this.requiredSlots = requiredSlots;
+            this.requiredSlot = requiredSlot;
             this.damageType = damageType;
             this.weakness = weakness;
             this.attack = attack;
@@ -89,6 +78,17 @@ namespace Items
         {
             base.Equip(character);
             character.attack.SetModifier(attack, this);
+        }
+    }
+
+    public class NaturalWeapon : Weapon
+    {
+        public NaturalWeapon(int precision, int rndRange) : base()
+        {
+            this.precision = precision;
+            this.rndRange = rndRange;
+            damageType = DamageType.None;
+            weakness = DamageType.None;
         }
     }
 
@@ -131,7 +131,6 @@ namespace Items
         public Claymore() : base()
         {
             name = "Claymore";
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Weapon, Character.EquipSlot.Shield };
             value = 50;
             attack = 40;
             speed = -30;
@@ -143,7 +142,6 @@ namespace Items
     {
         public Spear() : base()
         {
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Weapon, Character.EquipSlot.Shield };
             damageType = DamageType.Piercing;
             weakness = DamageType.Bludgeoning;
             rndRange = 20;
@@ -202,10 +200,10 @@ namespace Items
     {
         public Armor() { }
 
-        public Armor(string name, Character.EquipSlot[] requiredSlots, int defense, int speed, int value)
+        public Armor(string name, Character.EquipSlot requiredSlot, int defense, int speed, int value)
         {
             this.name = name;
-            this.requiredSlots = requiredSlots;
+            this.requiredSlot = requiredSlot;
             this.defense = defense;
             this.speed = speed;
             this.value = value;
@@ -225,20 +223,26 @@ namespace Items
     {
         public BodyArmor() : base()
         {
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Body };
+            requiredSlot = Character.EquipSlot.Body;
         }
     }
 
     public class LeatherArmor : BodyArmor
     {
-
+        public LeatherArmor()
+        {
+            name = "Leather Armor";
+            value = 5;
+            defense = 3;
+            speed = -2;
+        }
     }
 
     public abstract class Shield : Armor
     {
         public Shield() : base()
         {
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Shield };
+            requiredSlot = Character.EquipSlot.Shield;
         }
     }
 
@@ -246,22 +250,24 @@ namespace Items
     {
         public WoodenShield() : base()
         {
-            defense = 5;
+            name = "Wooden Shield";
+            value = 5;
+            defense = 6;
             speed = -5;
         }
     }
     #endregion
 
     #region Accessories
-    public class Necklace : Equipment
+    public class Accessory : Equipment
     {
-        public Necklace()
+        public Accessory()
         {
-            requiredSlots = new Character.EquipSlot[] { Character.EquipSlot.Necklace };
+            requiredSlot = Character.EquipSlot.Accessory;
         }
     }
 
-    public class PowerNecklace : Necklace
+    public class PowerNecklace : Accessory
     {
         public override void Equip(Character character)
         {
@@ -272,6 +278,7 @@ namespace Items
     }
     #endregion
 }
+
 
 
 ////////////////////////////////////////////////
@@ -304,8 +311,7 @@ namespace Characters
 {
     public class Stat
     {
-        protected int baseValue;
-
+        private int baseValue;
         private Dictionary<Equipment, int> modifiers = new Dictionary<Equipment, int>();
 
         public int Value
@@ -339,10 +345,12 @@ namespace Characters
     }
 
     public abstract class Character
-    {       
+    {
+        public static int BaseUnarmedCombatDamage = 10;
+
         public string name;
         //public int level = 1;
-        public int hp; // Current hit points
+        protected int damage; // Amount of damage taken so far
         public Spell.Element elementWeakness = Spell.Element.None;
         public Spell.Element elementResistance = Spell.Element.None;
         public readonly Stat maxHP = new Stat(); // Total hit points
@@ -350,11 +358,9 @@ namespace Characters
         public readonly Stat defense = new Stat();
         public readonly Stat speed = new Stat();
         public readonly Stat[] stats;
-        //public int turnAP = 3; // Actions Points gained at the beginning of each turn
-        //public int maxAP = 10; // Maximum stackable Action Points
-        public enum EquipSlot { Head, Body, Gauntlets, Boots, Shield, Weapon, Necklace, Ring }
+        public enum EquipSlot { Head, Body, Shield, Weapon, Accessory }
         public Dictionary<EquipSlot, Equipment> equipment = new Dictionary<EquipSlot, Equipment>(); // Dictionary from slot name to item class instance
-        public List<Spell> spellbook = new List<Spell>(); // Known spells
+        protected List<Spell> spellbook = new List<Spell>(); // Known spells
 
         public Character() // Characters initialization
         {
@@ -385,24 +391,37 @@ namespace Characters
 
         public string ShowStatus()
         {
-            return name + " - HP: " + hp;
+            return name + " - HP: " + CurrentHP.ToString();
         }
 
         public abstract string LogAction(string actionName);
 
-        public virtual void GetDamage(int damage)
+        public int CurrentHP
+        { 
+            get
+            {
+                int hp = maxHP.Value - damage;
+                if (hp < 0) { hp = 0; } // Prevent negative Hit Points
+                return hp;
+            }
+        }
+
+        public virtual void TakeDamage(int damage)
         {
             if (damage < 1) { damage = 1; } // Prevent negative or null damage values
-            hp -= damage;
-            if (hp < 0) { hp = 0; } // Prevent negative Hit Points
+            this.damage += damage;
             Utils.Tale(LogAction("receive") + " " + damage.ToString() + " points of damage");
         }
 
         public void Attack(Character target)
         {
-            Utils.Tale(LogAction("attack") + " " + target.name + " with " + equipment[EquipSlot.Weapon].name);
             Weapon weapon = equipment[EquipSlot.Weapon] as Weapon;
             Weapon targetWeapon = target.equipment[EquipSlot.Weapon] as Weapon;
+
+            string attackLog = LogAction("attack") + " " + target.name;
+            if(!(weapon is NaturalWeapon)) { attackLog += " with " + weapon.name; }
+            Utils.Tale(attackLog);
+
             Random rnd = new Random();
             int hitRoll = rnd.Next(1, 100);
             bool hit = hitRoll <= weapon.precision - target.speed.Value;
@@ -417,12 +436,15 @@ namespace Characters
                     Utils.Tale("Weapon Advantage!");
                 } 
                 if (critical) { damage *= 3; Utils.Tale("CRITICAL HIT!"); } // Apply critical bonus
-                target.GetDamage(damage);
+                target.TakeDamage(damage);
             }
-            else
-            {
-                Utils.Tale("The attack misses...");
-            }
+            else { Utils.Tale("The attack misses..."); }
+        }
+
+        public virtual void LearnSpell(Spell spell)
+        {
+            Utils.Tale("Learned spell: " + spell.name);
+            spellbook.Add(spell);
         }
 
         public abstract void ChooseSpell(Character target);
@@ -442,33 +464,92 @@ namespace Characters
                 damage /= 2;
                 Utils.Tale("Element Resistance!");
             }
-            target.GetDamage(damage);
+            target.TakeDamage(damage);
         }
 
         public void DrinkPotion()
         {
             Utils.Tale(LogAction("drink") + " a Potion");
-            hp = maxHP.Value;
-            Utils.Tale(name + " HP: " + hp);
+            damage = 0;
+            Utils.Tale(name + " HP: " + CurrentHP);
+        }
+
+        enum BattleOutcome { Continue, Win, Lose }
+
+        public Character Battle(Enemy enemy)
+        {
+            Utils.Tale("Starting battle with " + enemy.name);
+
+            BattleOutcome outcome = BattleOutcome.Continue;
+            BattleOutcome CheckOutcome()
+            {
+                if (CurrentHP <= 0) { return BattleOutcome.Lose; }
+                else if (enemy.CurrentHP <= 0) { return BattleOutcome.Win; }
+                else { return BattleOutcome.Continue; }
+            }
+
+            // Fight
+            bool playerTurn = speed.Value >= enemy.speed.Value;
+            while (outcome == BattleOutcome.Continue)
+            {
+                if (playerTurn)
+                {
+                    ChooseBattleAction(enemy);
+                    Utils.Tale(enemy.ShowStatus());
+                    outcome = CheckOutcome();
+                }
+                else
+                {
+                    enemy.Attack(this);
+                    Utils.Tale(ShowStatus());
+                    outcome = CheckOutcome();
+                }
+                playerTurn = !playerTurn;
+            }
+
+            // Outcome
+            Console.WriteLine("Battle ended");
+            if (outcome == BattleOutcome.Win)
+            {
+                return this;
+            }
+            else
+            {
+                return enemy;
+            }
         }
     }
 
-
+    [System.Serializable]
     public class Player : Character
     {
+        protected List<Item> Inventory { get; set; }
+
         public Player() : base()
         {
             name = "You";
-            hp = 50;
             maxHP.SetBaseValue(50);
             attack.SetBaseValue(10);
             defense.SetBaseValue(5);
             speed.SetBaseValue(5);
+            Inventory = new List<Item>();
         }
 
         public override string LogAction(string actionName)
         {
             return "You " + actionName;
+        }
+
+        public override void TakeDamage(int damage)
+        {
+            base.TakeDamage(damage);
+
+            // END GAME IF YOU DIE
+            if (CurrentHP <= 0)
+            {
+                Utils.Tale("You died.");
+                GameController.gameOver = true;
+            }                
         }
 
         public override string[] GetBattleActions()
@@ -478,7 +559,7 @@ namespace Characters
                 "Attack",
                 "Cast Spell",
                 "Drink Potion",
-                "Change Equipment"
+                "Change Weapon"
             };
 
             return availableActions.ToArray();
@@ -496,8 +577,8 @@ namespace Characters
 
             switch (GetBattleActions()[actionID])
             {
-                case "Change Equipment":
-                    ChangeEquipment();
+                case "Change Weapon":
+                    ChangeEquipment(ChooseItemFromList<Equipment>(GetEquipmentFromInventory(EquipSlot.Weapon)));
                     break;
                 default:
                     break;
@@ -522,21 +603,83 @@ namespace Characters
             CastSpell(spell, target);
         }
 
-        public void ChangeEquipment()
+        public void AddToInventory(Item item)
         {
-            Utils.Tale("Changing equipment - to be implemented");
+            if (Inventory.Count <= 10)
+            {
+                Inventory.Add(item);
+                Utils.Tale(item.name + " added to the inventory.");
+            }
+            else
+            {
+                Utils.Tale("You cannot take " + item.name + ": inventory is full.");
+            }
         }
+
+        public void RemoveFromInventory(Item item)
+        {
+            Inventory.Remove(item);
+        }
+
+        public List<Item> GetItemsFromInventory<itemType>() where itemType : Item
+        {
+            // Get list of EquipType type of items in inventory
+            List<itemType> availableEquips = new List<itemType>();
+            foreach (Item item in Inventory)
+                if (item is itemType) { availableEquips.Add(item as itemType); }
+
+            return availableEquips as List<Item>;
+        }
+
+        public List<Equipment> GetEquipmentFromInventory(EquipSlot slotType)
+        {
+            // Get list of EquipType type of items in inventory
+            List<Equipment> availableEquips = new List<Equipment>();
+            foreach (Item item in Inventory)
+                if (item is Equipment)
+                {
+                    Equipment equip = item as Equipment;
+                    if (equip.requiredSlot == slotType)
+                        availableEquips.Add(equip);
+                }
+
+            return availableEquips;
+        }
+
+        public ItemType ChooseItemFromList<ItemType>(List<ItemType> availableItems) where ItemType : Item
+        {
+            int choice = Utils.ProcessChoice(availableItems.ConvertAll(x => x.name).ToArray());
+            return availableItems[choice];
+        }
+
+        public void ChangeEquipment(Equipment newEquip)
+        {
+            RemoveFromInventory(newEquip);
+            if (equipment.ContainsKey(newEquip.requiredSlot))
+            {
+                Equipment oldEquip = equipment[newEquip.requiredSlot];
+                AddToInventory(oldEquip);
+                oldEquip.Unequip(this);
+            }
+            newEquip.Equip(this);
+
+            Utils.Tale("Equipped " + newEquip.name);
+        }        
     }
 
     #region Enemies
     public abstract class Enemy : Character
     {
-        public Enemy(Dictionary<EquipSlot, Equipment> equip) : base()
+        public Enemy(Dictionary<EquipSlot, Equipment> equip = null, List<Spell> spellbook = null) : base()
         {
-            foreach (KeyValuePair<EquipSlot, Equipment> e in equip)
-            {
-                e.Value.Equip(this);
-            }
+            if (equip != null)
+                foreach (KeyValuePair<EquipSlot, Equipment> e in equip)
+                    e.Value.Equip(this);
+            else
+                SetNaturalWeapon(90, 15);
+            
+            if (spellbook != null)
+                this.spellbook = spellbook;
         }
 
         public override string LogAction(string actionName)
@@ -561,16 +704,20 @@ namespace Characters
         {
             throw new NotImplementedException();
         }
+
+        public void SetNaturalWeapon(int precision, int rndRange)
+        {
+            equipment[EquipSlot.Weapon] = new NaturalWeapon(precision, rndRange);
+        }
     }
 
     public class Goblin : Enemy
     {
-        public Goblin(Dictionary<EquipSlot, Equipment> equip) : base(equip)
+        public Goblin(Dictionary<EquipSlot, Equipment> equip, List<Spell> spellbook = null) : base(equip, spellbook)
         {
             name = "Goblin";
-            hp = 30;
-            elementWeakness = Spell.Element.Fire;
-            maxHP.SetBaseValue(20);            
+            elementWeakness = Spell.Element.Water;
+            maxHP.SetBaseValue(30);
             attack.SetBaseValue(5);
             defense.SetBaseValue(5);
             speed.SetBaseValue(15);
@@ -579,11 +726,26 @@ namespace Characters
 
     public class GoblinShaman : Goblin
     {
-        public GoblinShaman(Dictionary<EquipSlot, Equipment> equip) : base(equip)
+        public GoblinShaman(List<Spell> spellbook, Dictionary<EquipSlot, Equipment> equip = null) : base(equip, spellbook)
         {
-            hp = 60;
+            name = "Goblin Shaman";
             elementWeakness = Spell.Element.None;
             speed.SetBaseValue(15);
+            maxHP.SetBaseValue(60);
+        }
+    }
+
+    public class Wolf : Enemy
+    {
+        public Wolf()
+        {
+            name = "Wolf";
+            elementWeakness = Spell.Element.Fire;
+            maxHP.SetBaseValue(50);
+            attack.SetBaseValue(30);
+            defense.SetBaseValue(20);
+            speed.SetBaseValue(15);
+            SetNaturalWeapon(85, 20);
         }
     }
     #endregion
@@ -612,6 +774,18 @@ namespace Scenes
             return func();
         }
     }
+}
+
+
+
+[System.Serializable]
+public class SaveGame
+{
+    public string SceneToLoad { get; set; }
+    public List<string> Achievements { get; set; }
+    public int PlayerDamage { get; set; }
+    public List<string> PlayerInventory { get; set; }
+    public List<string> PlayerEquipment { get; set; }
 }
 
 
@@ -670,18 +844,13 @@ namespace Utilities
         }
 
         public static void Tale(string text, bool stop = true)
-        {
-            //Console.WriteLine(text + "\n");
+        {            
             foreach (char c in text)
             {
                 Console.Write(c);
                 Thread.Sleep(3);
             }
-
-            if (stop)
-            {
-                WaitInput();
-            }
+            if (stop) { WaitInput(); }
         }
 
         public static int ProcessChoice(string[] choices)
@@ -718,7 +887,7 @@ namespace Utilities
             {
                 return InvalidInput();
             }
-        }
+        }        
     }
 }
 
@@ -729,15 +898,34 @@ namespace Utilities
 ////////////////////////////////////////////////
 class GameController
 {
-    public static GameController Instance;
-    public static int BaseUnarmedCombatDamage = 10;
-
-    //public static RustySword RustySword = new RustySword();
+    public static string SavePath = "SaveGame.json";
+    public static bool gameOver = false;
 
     public List<Scene> scenes = new List<Scene>();  // List of all scenes
-    public bool gameOver = false;
-    public string sceneToLoad;
     public Player player;
+    public string sceneToLoad;
+    public List<string> achievements = new List<string>();
+
+    public void Save(string fileName)
+    {
+        string jsonString = JsonSerializer.Serialize(new SaveGame()
+        {
+            SceneToLoad = sceneToLoad,
+            Achievements = achievements,
+            PlayerDamage = player.maxHP.Value - player.CurrentHP,
+            PlayerInventory = player.GetItemsFromInventory<Item>().ConvertAll<string>(x => x.GetType().ToString()),
+            PlayerEquipment = player.equipment.Values.ToList().ConvertAll<string>(x => x.GetType().ToString())
+        });
+        File.WriteAllText(fileName, jsonString);
+    }
+
+    public void Load(string fileName)
+    {
+        string jsonString = File.ReadAllText(fileName);
+        SaveGame saveGame = JsonSerializer.Deserialize<SaveGame>(jsonString);
+        sceneToLoad = saveGame.SceneToLoad;
+        achievements = saveGame.Achievements;
+    }
 
     public void AddScene(Scene scene)
     {
@@ -750,6 +938,7 @@ class GameController
         {
             if (scene.title == title)
             {
+                Save(SavePath);
                 return scene.Run();
             }
         }
@@ -757,76 +946,10 @@ class GameController
         Console.WriteLine(new Exception("Scene not found"));
         gameOver = true;
         return "";
-    }
-
-    enum Outcome { Win, Lose, Continue }
-
-    public void Battle(Enemy enemy)
-    {
-        Utils.Tale("Starting battle with " + enemy.name);
-
-        Outcome outcome = Outcome.Continue;
-        Outcome CheckOutcome(Enemy enemy)
-        {
-            if (player.hp <= 0)
-            {
-                return Outcome.Lose;
-            }
-            else if (enemy.hp <= 0)
-            {
-                return Outcome.Win;
-            }
-            else
-            {
-                return Outcome.Continue;
-            }
-        }
-
-        // Fight
-        bool playerTurn = player.speed.Value >= enemy.speed.Value;
-        while (outcome == Outcome.Continue)
-        {
-            if (playerTurn)
-            {
-                player.ChooseBattleAction(enemy);
-                Utils.Tale(enemy.ShowStatus());
-                outcome = CheckOutcome(enemy);
-            }
-            else
-            {
-                enemy.Attack(player);
-                Utils.Tale(player.ShowStatus());
-                outcome = CheckOutcome(enemy);
-            }
-            playerTurn = !playerTurn;
-            //Utils.WaitInput();
-        }
-
-        // Outcome
-        if (outcome == Outcome.Win)
-        {
-            Console.WriteLine("Battle ended");
-        }
-        else
-        {
-            Console.WriteLine("You lose");
-            gameOver = true;
-        }
-    }
+    }    
 
     public void RunGame()
     {
-        ////////////////////////////////////////////////
-        // CREATE ITEMS
-        ////////////////////////////////////////////////
-        //RustySword rustySword = new RustySword();
-        //ShortSpear shortSpear = new ShortSpear();
-        //Club club = new Club();
-        //MorningStar morningStar = new MorningStar();
-        //WoodenShield woodenShield = new WoodenShield();
-
-
-
         ////////////////////////////////////////////////
         // CREATE SPELLS
         ////////////////////////////////////////////////        
@@ -845,13 +968,17 @@ class GameController
         new RustySword().Equip(player);
         //morningStar.Equip(player);        
         new WoodenShield().Equip(player);
-        player.spellbook.Add(fireBall);
+        player.LearnSpell(fireBall);
+        //player.LearnSpell(waterSurge);
+        player.AddToInventory(new Club());
+        player.AddToInventory(new ShortSpear());
 
         // Test Enemy
-        Enemy testEnemy = new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
-        {
-            { Character.EquipSlot.Weapon, new Club() }
-        });
+        //Enemy testEnemy = new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
+        //{
+        //    { Character.EquipSlot.Weapon, new Club() }
+        //});
+        Enemy testEnemy = new Wolf();
 
 
 
@@ -860,15 +987,6 @@ class GameController
         ////////////////////////////////////////////////
         //Console.WriteLine(testEnemy.speed.Value);
         //Console.WriteLine(player.speed.Value);
-        //Console.WriteLine("Hello");
-        //Console.WriteLine("\n"); // First blank new line
-        // w = new RustySword();
-        //Console.WriteLine(player.ATTACK + "/" + player.DEFENSE);
-        //Enemy goblin = new Goblin(new Dictionary<Character.EquipSlot, Item>()
-        //{
-        //    { Character.EquipSlot.RightHand, new RustySword() }
-        //});
-        //Console.WriteLine(goblin.ATTACK + "/" + goblin.DEFENSE);
 
 
 
@@ -889,9 +1007,7 @@ class GameController
             {
                 case 0: return "Innkeeper";
                 case 1: return "Quest Board";
-                case 2:
-                    Battle(testEnemy);
-                    break;
+                case 2: player.Battle(testEnemy); break;
             }
 
             return "Four Graves Inn";
@@ -900,7 +1016,7 @@ class GameController
 
         AddScene(new Scene("Quest Board", () =>
         {
-            Utils.Tale("You look at the Inn's Quest Board:", false);
+            Utils.Tale("You look at the Inn's Quest Board:");
 
             switch (Utils.ProcessChoice(new string[]
             {
@@ -957,6 +1073,7 @@ class GameController
                 case 2: break;
             }
 
+            achievements.Add("Careful listener");
             Utils.Tale("WOMAN: You can find Cave Terror North-East from here, right after a very big Oak");
             Utils.Tale("WOMAN: Those goblins are horrible creatures... I don't want to think what they could have done to my daughter!");
             Utils.Tale("WOMAN: PLEASE SAVE HER!");
@@ -977,7 +1094,8 @@ class GameController
 
         AddScene(new Scene("Dragon", () =>
         {
-            Utils.Tale("You are yet too weak for this quest.", false);
+            achievements.Add("Reckless novice");
+            Utils.Tale("You are yet too weak for this quest.");
             switch (Utils.ProcessChoice(new string[] { "Back" })) { case 0: return "Quest Board"; }
             return "";
         }));
@@ -1002,11 +1120,12 @@ class GameController
             Utils.Tale("IT'S A GOBLIN!");
             Utils.Tale("And he's not friendly. The Goblin attacks you!");
 
-            Battle(new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
+            player.Battle(new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
             {
                 { Character.EquipSlot.Weapon, new RustySword() }
             }));
 
+            achievements.Add("Hero");
             Utils.Tale("YOU WIN.");
             gameOver = true;
             return "";
@@ -1014,39 +1133,20 @@ class GameController
 
 
 
-        //addScene("Main Menu", class () {
-        //    tale("Main Menu:", false);
-        //    return choice({
-        //        "Back": "Back",
-        //        "Status": "Status",
-        //        "Equipment": "Equipment"
-        //    });
-        //}, nested = true);
-
-        //addScene("Status", class () {
-        //    tale("You are Unk.", false);
-        //    return choice({
-        //        "Back": "Back"
-        //    });
-        //}, nested = true);
-
-        //addScene("Equipment", class () {
-        //    tale("Your equipment consists of a Rusty Sword and a pair of Old Boots.", false);
-        //    return choice({
-        //        "Back": "Back"
-        //    });
-        //}, nested = true);
-
-        //addScene("Cave Terror", class () {
-        //    tale("You approach a lonely woman with long grey hair, crying face down on a wooden table. When she hears your steps she looks at you, showing a worn out face marked with the traces of a past beauty.");
-        //});
-
-
-
         //////////////////////////////////////////////
         // MAIN LOOP
         //////////////////////////////////////////////
-        sceneToLoad = "Four Graves Inn";
+        if (File.Exists(SavePath))
+        {
+            Utils.Tale("Loading saved game");
+            Load(SavePath);
+        }
+        else
+        {
+            Utils.Tale("Starting new game");
+            sceneToLoad = "Four Graves Inn";
+        }
+
         while (!gameOver)
         {
             sceneToLoad = RunScene(sceneToLoad);
@@ -1068,7 +1168,6 @@ class Program
 {
     static void Main(string[] args)
     {
-        GameController.Instance = new GameController();
-        GameController.Instance.RunGame();
+        new GameController().RunGame();
     }
 }
