@@ -49,7 +49,7 @@ public class Wolf : Enemy
     {
         MaxHP.SetBaseValue(50);
         Attack.SetBaseValue(30);
-        Defense.SetBaseValue(20);
+        Defense.SetBaseValue(25);
         Speed.SetBaseValue(15);
         NaturalWeapon = new NaturalWeapon(rndRange: 25, precision: 80);
     }
@@ -102,7 +102,7 @@ public class RustySword : Sword
 {
     public override string Name => "Rusty Sword";
     public override int Value => 3;
-    public override int Attack => 15;
+    public override int Attack => 20;
     public override int Durability => 10;
 }
 
@@ -113,7 +113,7 @@ public class Dagger : Sword
     public override int Attack => 10;
     public override int RndRange => 5;
     public override int Precision => 100;
-    public override int Speed => 10;
+    public override int Weight => 0;
     public override int Durability => 20;
 }
 
@@ -122,7 +122,7 @@ public class Claymore : Sword
     public override string Name => "Claymore";
     public override int Value => 50;
     public override int Attack => 40;
-    public override int Speed => -30;
+    public override int Weight => 7;
     public override int Durability => 20;
 }
 
@@ -131,7 +131,7 @@ public class ThunderBlade : Sword
     public override string Name => "Thunder Blade";
     public override int Value => 350;
     public override int Attack => 30;
-    public override int Speed => 10;
+    public override int Weight => 2;
     public override int Durability => 10;
     public override Action<Character, Character> CustomEffects => (user, target) =>
     {
@@ -147,7 +147,7 @@ public class ShortSpear : Spear
 {
     public override string Name => "Short Spear";
     public override int Value => 7;
-    public override int Attack => 15;
+    public override int Attack => 20;
     public override int Durability => 20;
 }
 
@@ -155,7 +155,7 @@ public class Club : Hammer
 {
     public override string Name => "Club";
     public override int Value => 1;
-    public override int Attack => 20;
+    public override int Attack => 25;
     public override int Durability => 10;
 }
 
@@ -164,7 +164,7 @@ public class MorningStar : Hammer
     public override string Name => "Morning Star";
     public override int Value => 40;
     public override int Attack => 35;
-    public override int Speed => 0;
+    public override int Weight => 3;
     public override int Durability => 20;
 }
 
@@ -174,7 +174,8 @@ public abstract class Axe : Weapon
     public override DamageType Weakness => DamageType.Slashing;
     public override int RndRange => 25;
     public override int Precision => 80;
-    public override int Speed => -7;
+    public override int Critical => 20;
+    public override int Weight => 4;
 }
 
 public class HandAxe : Axe
@@ -191,11 +192,13 @@ public abstract class Bow : Weapon
     public override DamageType Weakness => DamageType.Bludgeoning;
     public override int RndRange => 10;
     public override int Precision => 60;
-    public override int Speed => 20;
-    public override void Equip(Character character)
+    public override int Critical => 10;
+    public override int Weight => 1;
+    public override void OnEquip(Character character)
     {
-        base.Equip(character);
+        base.OnEquip(character);
         character.Defense.SetModifier(-10, this);
+        character.Speed.SetModifier(10, this);
     }
 }
 
@@ -211,8 +214,32 @@ public class LeatherArmor : BodyArmor
 {
     public override string Name => "Leather Armor";
     public override int Value => 5;
-    public override int Defense => 3;
-    public override int Speed => -2;
+    public override int Defense => 5;
+    public override int Weight => 1;
+}
+
+public abstract class Vest : BodyArmor
+{
+    public override int Defense => 0;
+    public abstract int ManaBonus { get; }
+    public override int Weight => 0;
+    public override void OnEquip(Character character)
+    {
+        base.OnEquip(character);
+        if (character is Player)
+        {
+            Player player = character as Player;
+            player.MaxManaPoints.SetModifier(ManaBonus, this);
+            player.CurrentManaPoints += ManaBonus;
+        }
+    }
+}
+
+public class BlueVest : Vest
+{
+    public override string Name => "Blue Vest";
+    public override int Value => 5;
+    public override int ManaBonus => 2;
 }
 
 public class WoodenShield : Shield
@@ -220,7 +247,6 @@ public class WoodenShield : Shield
     public override string Name => "Wooden Shield";
     public override int Value => 5;
     public override int Defense => 6;
-    public override int Speed => -5;
     public override int Durability => 3;
 }
 
@@ -228,8 +254,7 @@ public class IronShield : Shield
 {
     public override string Name => "Iron Shield";
     public override int Value => 20;
-    public override int Defense => 15;
-    public override int Speed => -7;
+    //public override int Defense => 15;
     public override int Durability => 6;
 }
 
@@ -238,12 +263,45 @@ public class PowerNecklace : Accessory
     public override string Name => "Power Necklace";
     public override int Value => 100;
 
-    public override void Equip(Character character)
+    public override void OnEquip(Character character)
     {
-        base.Equip(character);
+        base.OnEquip(character);
         character.MaxHP.SetModifier(30, this);
         character.Attack.SetModifier(15, this);
     }
+}
+
+public class Elixir : Potion
+{
+    public override string Name => "Elixir";
+    public override int Value => 70;
+    public override int Weight => 0;
+    protected override void Effect(Character user)
+    {
+        // Here custom elixir effects
+    }
+}
+#endregion
+
+#region MyMusic
+public class IntroTheme : Music
+{
+    public override Note[] Tune => new Note[]
+    {
+        new Note(Tone.B, Duration.QUARTER),
+        new Note(Tone.A, Duration.QUARTER),
+        new Note(Tone.GbelowC, Duration.QUARTER),
+        new Note(Tone.A, Duration.QUARTER),
+        new Note(Tone.B, Duration.QUARTER),
+        new Note(Tone.B, Duration.QUARTER),
+        new Note(Tone.B, Duration.HALF),
+        new Note(Tone.A, Duration.QUARTER),
+        new Note(Tone.A, Duration.QUARTER),
+        new Note(Tone.A, Duration.HALF),
+        new Note(Tone.B, Duration.QUARTER),
+        new Note(Tone.D, Duration.QUARTER),
+        new Note(Tone.D, Duration.HALF)
+    };
 }
 #endregion
 
@@ -256,13 +314,22 @@ public class MyPlayer : Player
         // Here my custom spells system
     }
 
-    public override string ShowStatus()
+    public override void ShowStatus()
     {
-        string status = "Your name is Kros\nHP: " + CurrentHP.ToString() + "\nMana Points: " + manaPoints.ToString() + "\nCurrent Equipment:\n";
-        foreach (EquipSlot equip in equipment.Keys)
-            status += equip.ToString() + " => " + equipment[equip].ToString() + "\n";
+        string status = "Your name is Kros\nHP: " + CurrentHP.ToString() + "\nMana Points: " + manaPoints.ToString() + "\nCurrent Equipment:";
+        foreach (EquipSlot slot in equipment.Keys)
+            status += "\n" + slot.ToString() + " => " + equipment[slot].ToString() + equipment[slot].PrintHealth;
+        Game.Instance.Tale(status);
 
-        return status;
+        switch (Game.Instance.ProcessChoice(new string[]
+        {
+            "Change Equipment",
+            "Back"
+        }))
+        {
+            case 0: ChangeEquipment(); ShowStatus(); break;
+            case 1: break;
+        }        
     }
 }
 
@@ -282,8 +349,62 @@ class MyGame : Game
     //    base.Tale(text, stop);
     //}
 
+    void BattleTest()
+    {
+        // Player settings
+        Player.Equip(new RustySword());
+        //Player.Equip(new WoodenShield());
+        Player.Equip(new BlueVest());
+        Player.LearnSpell(new FireBall());
+        //Player.LearnSpell(new Meteor());
+        Player.AddToInventory(new Potion(), silent: true);
+        Player.AddToInventory(new Potion(), silent: true);
+        Player.AddToInventory(new Elixir(), silent: true);
+        //Player.AddToInventory(new Potion(), silent: true);
+        //Player.AddToInventory(new Potion(), silent: true);
+        //Player.AddToInventory(new Potion(), silent: true);
+        Player.AddToInventory(new ThunderBlade(), silent: true);
+
+        // Test enemy
+        //Enemy testEnemy = new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
+        //{
+        //    { Character.EquipSlot.Weapon, new ShortSpear() },
+        //    { Character.EquipSlot.Shield, new WoodenShield() }
+        //});
+        Enemy testEnemy = new Wolf();
+
+        //Player.FindEquipment(new WoodenShield());
+        //Player.FindEquipment(new Club());
+
+        // Battle
+        Player.Battle(testEnemy, (outcome, enemy) => {
+            if (outcome == Character.BattleOutcome.Win)
+            {
+                Tale("YOU WIN");
+                return Player;
+            }
+            else
+            {
+                Tale("YOU LOSE");
+                return enemy;
+            }
+        });
+
+        // Restore new player
+        myPlayer = new MyPlayer();
+    }
+
+    void Rest()
+    {
+        Player.CurrentHP = Player.MaxHP.Value;
+        Save();
+        Tale("You have recovered your energy.");
+        Tale("You saved the game.");
+    }
+
     protected override void MainMenu()
     {
+        //new Thread(() => new IntroTheme()).Start();
         Tale("Welcome to this Text Role-Playing Game!");
         switch (ProcessChoice(new string[]
         {
@@ -335,57 +456,22 @@ class MyGame : Game
                 MainMenu(); break;
         }
     }
-
-    void BattleTest()
-    {
-        // Player settings
-        //new ThunderBlade().Equip(Player);
-        new RustySword().Equip(Player);
-        new WoodenShield().Equip(Player);
-        Player.LearnSpell(new FireBall());
-        Player.LearnSpell(new Meteor());
-        Player.AddToInventory(new Potion(), silent: true);
-        Player.AddToInventory(new ThunderBlade(), silent: true);
-
-        // Test enemy
-        Enemy testEnemy = new Goblin(new Dictionary<Character.EquipSlot, Equipment>()
-        {
-            { Character.EquipSlot.Weapon, new ShortSpear() }
-        });
-
-        // Battle
-        Player.Battle(testEnemy, (outcome, enemy) => {
-            if (outcome == Character.BattleOutcome.Win)
-            {
-                Tale("YOU WIN");
-                return Player;
-            }                
-            else
-            {
-                Tale("YOU LOSE");
-                return enemy;
-            }                
-        });
-
-        // Restore new player
-        myPlayer = new MyPlayer();
-    }
-
+        
     protected override void Initialize()
     {
         ////////////////////////////////////////////////
         // SETUP PLAYER
         ////////////////////////////////////////////////  
-        new RustySword().Equip(Player);
-        //new WoodenShield().Equip(Player);
+        Player.Equip(new RustySword(), silent: true);
         //Player.LearnSpell(new FireBall());
         Player.MaxManaPoints.SetBaseValue(3);
         Player.CurrentManaPoints = 2;
-        //player.LearnSpell(waterSurge);
-        //player.AddToInventory(new Club());
+        //Player.LearnSpell(waterSurge);
+        //Player.AddToInventory(new Club());
+        //Player.AddToInventory(new BlueVest());
         //Player.AddToInventory(new Potion());
         Player.GetItemsFromInventory<Potion>();
-        //player.AddToInventory(new ShortSpear());
+        //Player.AddToInventory(new ShortSpear());
         //Console.WriteLine(Player.Attack.Value);
         //Console.WriteLine(Player.stats.Length);
     }
@@ -399,7 +485,7 @@ class MyGame : Game
         #region Prologue
         AddScene(new Scene("Intro", () =>
         {            
-            Tale("\nPART 1: KROS\n");
+            Tale("\nPART 1: KROS\n");            
             Tale("PROLOGUE: The hood and the horns\n");
 
             Tale("You are walking on a muddy path. After a week of travel, you've finally found a place where you can rest.");
@@ -422,13 +508,13 @@ class MyGame : Game
             switch (ProcessChoice(new string[]
             {                
                 "View your status",
-                "Save Game",
+                "Rest",
                 "Talk with the innkeeper",
                 "Read the quest board",                
             }))
             {
-                case 0: Tale(Player.ShowStatus()); break;
-                case 1: Save(); Tale("You saved the game."); break;
+                case 0: Player.ShowStatus(); break;
+                case 1: Rest(); break;
                 case 2: return "Innkeeper";
                 case 3: return "Quest Board";
             }
@@ -527,6 +613,10 @@ class MyGame : Game
         {
             Tale("You reach Cave Terror after walking for an hour.");
             Tale("You enter a damp cave. The suddenly cold air and the creepy noise you hear from distance make you feel uneasy.");
+
+            if (achievements.Contains("Spellcaster"))
+                return "Cave Terror";
+
             Tale("JUNO: Remember Kros, you have half Kuraktai blood boiling in your veins!");
             Tale("JUNO: Should you find yourself great danger, you can use that spell I taught you. Do you remember its name and how to cast it?");
 
@@ -549,6 +639,15 @@ class MyGame : Game
             Tale("Fire Ball");
             Player.LearnSpell(new FireBall());
 
+            achievements.Add("Spellcaster"); // The player passed the tutorial
+            Save(); // We can save the game because the player will be able to go back to the Inn anyway
+
+            return "Cave Terror";
+        }));
+
+
+        AddScene(new Scene("Cave Terror", () =>
+        {
             switch (ProcessChoice(new string[]
             {
                 "Go back",
@@ -556,14 +655,9 @@ class MyGame : Game
             }))
             {
                 case 0: return "Four Graves Inn";
-                case 1: return "Cave Terror";
+                case 1: break;
             }
-            return "";
-        }));
 
-
-        AddScene(new Scene("Cave Terror", () =>
-        {
             Tale("As you move forward, deeper into the cave, you hear the sound of fast steps approaching...");
             Tale("IT'S A GOBLIN!");
             Tale("And he's not friendly. The Goblin attacks you!");
@@ -625,26 +719,28 @@ class MyGame : Game
             }));
             
             Tale("After the defeated Goblin exhales his last breath, you hurry to free the poor girl.");
-            Tale("KROS: It's alright girl, your mother sent me here to rescue you.");
+            Tale("YOU: It's alright girl, your mother sent me here to rescue you.");
+            Tale("The trembling girl stands still, confused, but also looking with a spark of curiosity that figure...");
+            Tale("... Of a man with a hood and a long cloak, shrouded in the darkness of the cave.");
             Tale("JUNO: Hush, little jewel, you are safe now...");
             Tale("The girl slowly tries to wipe away the tears with the back of his hands.");
             Tale("GIRL: Who are you? Where did this voice came from?");
             Tale("JUNO: You can't see me now, I am an air elemental.");
             Tale("And saying so, a gentle breeze moves the girl's hair.");
             Tale("GIRL: Air elemental?");
-            Tale("KROS: We must hurry out of this place. Can you walk on your feet?");
+            Tale("YOU: We must hurry out of this place. Can you walk on your feet?");
             Tale("GIRL: Yes...");
             Tale("JUNO: Let's move. We don't know how many Goblins could still be nearby...");           
 
             Tale("As the three of you approach the much coveted exit of the cave, you suddenly feel an unsettling presence.");
-            Tale("You turn back and see two red eyes glowing of that darkenss you were about to leave behind...");
+            Tale("You turn back and see two red eyes glowing in that darkenss you were about to leave behind...");
             Tale("JUNO: A Wolf!");
             Tale("JUNO: This Wolf is a fearsome opponent... You might not be able to defeat him with the weapons strenght alone!");
             Tale("JUNO: This could be the very good moment to try out that Fire Ball spell, don't you think?");
             if (Player.CurrentManaPoints < 2)
             {
                 Tale("JUNO: I see you already consumed your mana, the magical energy that enables you to cast spells.");
-                Tale("JUNO: For this time only I will gift you with a bit of my energy...");
+                Tale("JUNO: For this time I will gift you with a bit of my energy...");
                 Player.CurrentManaPoints = 2;
                 Tale("JUNO: ...But remember, I won't always be able to do this!");
             }
@@ -652,13 +748,71 @@ class MyGame : Game
             Player.Battle(new Wolf());
 
             achievements.Add("Hero");
-            Save();
-            Tale("YOU WIN.");
+            Save();            
+            return "After Cave Terror";
+        }));
+
+        AddScene(new Scene("After Cave Terror", () =>
+        {
+            Tale("JUNO: Kros! Watch out!");
+            Tale("The giant black Wolf jumps towards you with every remnant of its strenght.");
+            Tale("YOU: Fire... Ball!");
+            Tale("The little scared girl stands amazed while a burst of flames flashes out of your hands.");
+            Tale("A burning sphere engulfs the Wolf mid air, crushing the beast against the cave wall.");
+            Tale("Its lifeless body now lying on the ground...");
+            Tale("For a brief moment, no one talks. Only silence, and the smell of roasted meat and burnt fur.");
+            Tale("JUNO: Well done, Kros.");
+            Tale("---");
+            Tale("The party then heads out of the cave, walking down the path that leads to the Four Graves Inn.");
+            Tale("After nearly an hour of walk, the inn could now be seen in the distance.");
+            Tale("GIRL: My house is on the road, there, near that little wheat field...");
+            Tale("As you approach an old wooden house, the girl recognizes a woman that was praying on her kneel, right after a tombstone.");
+            Tale("Her long black dress moved by a strong wind coming from the hills.");
+            Tale("GIRL: Mother!");
+            Tale("As soon as they see each others, they run to meet and hug.");
+            Tale("WOMAN: Lea!");
+            Tale("GIRL: Mother! I was so scared!");
+            Tale("Says the girl, crying.");
+            Tale("WOMAN: I knew you were still alive. I prayed all the day on the tomb of you father. He protected you...");
+            Tale("Then the girl turns towards you.");
+            Tale("LEA: And this man saved me. He fought all the Goblins that were keeping me captive.");
+            Tale("WOMAN (Looking at you): I don't know how to thank you... We don't have much but we will gladly share our food with you, and you could stay under our roof as long as you need.");
+            Tale("A smile of joy makes its way on your face. You are not used to such kindness.");
+            Tale("JUNO: Kros.");
+            Tale("YOU: I know. We cannot stay.");
+            Tale("As you think of something to answer, a strong gust of wind pulls your hood down,");
+            Tale("revealing two blood-red horns emerging from your black hair, and the unusually dark olive skin of your face");
+            Tale("At this sight, the woman withdraws, pulling her daughter to her arms.");
+            Tale("WOMAN: A monster!");
+            Tale("Their eyes now trembling with fear...");
+            Tale("WOMAN: Please, stay away from us!");
+            Tale("Then the two hurry in the house, barring the door from the inside.");
+            Tale("JUNO: Let's go,");
+            Tale("JUNO: Kros");
+
+            Tale("THIS DEMO ENDS HERE.");
             gameOver = true;
             return "";
         }));
         #endregion
 
+        #region Chapter 1
+        //AddScene(new Scene("After Cave Terror", () =>
+        //{
+        //    Tale("");           
+
+        //    switch (ProcessChoice(new string[]
+        //    {
+        //        "",
+        //        ""
+        //    }))
+        //    {
+        //        case 0: return "";
+        //        case 1: return "";
+        //    }
+        //    return "";
+        //}));
+        #endregion
     }
 }
 
@@ -669,7 +823,7 @@ class MyGame : Game
 class Program
 {
     static void Main(string[] args)
-    {
+    {      
         new MyGame().Run();
     }
 }

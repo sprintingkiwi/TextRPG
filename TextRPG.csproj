@@ -7,6 +7,7 @@
     <PackageProjectUrl>https://github.com/sprintingkiwi/TextRPG</PackageProjectUrl>
     <PackageIcon>Unk.jpg</PackageIcon>
     <ApplicationIcon>Unk.ico</ApplicationIcon>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

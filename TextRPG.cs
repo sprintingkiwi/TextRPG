@@ -13,24 +13,12 @@ namespace TextRPG
     ////////////////////////////////////////////////
     public abstract class Item
     {
+        private int uses = 0;
+
         public abstract string Name { get; }
         public abstract int Value { get; }
-    }
-
-    public abstract class Consumable : Item { }
-
-    public class Potion : Consumable
-    {
-        public override string Name => "Potion";
-        public override int Value => 30;
-    }
-
-    public abstract class Equipment : Item
-    {
-        public abstract Character.EquipSlot RequiredSlot { get; }
-        public virtual int Speed { get; }
-        public virtual int Durability => -1;
-        private int uses = 0;
+        public abstract int Weight { get; }
+        public abstract int Durability { get; }
         public int Uses
         {
             get { return uses; }
@@ -42,37 +30,30 @@ namespace TextRPG
                 uses = value;
             }
         }
-        protected Character user;
-
-        public virtual void Equip(Character character)
+        public string PrintHealth
         {
-            user = character;
-            character.equipment.Add(RequiredSlot, this);
-            character.Speed.SetModifier(Speed, this);
-        }
-
-        public virtual void Unequip(Character character)
-        {
-            user = null;
-            character.equipment.Remove(RequiredSlot);
-            foreach (Stat stat in character.stats)
-                stat.RemoveModifierFromSource(this);
-        }
-
-        public virtual void WearOut()
-        {
-            if (Durability < 0)
-                return;
-            else
+            get
             {
-                uses += 1;
-                if (uses >= Durability)
-                {
-                    Game.Instance.Tale(Name + " is broken.");
-                    Unequip(user);
-                }
+                if (Durability > 1)
+                    return " [" + (Durability - uses).ToString() + "/" + Durability.ToString() + "]";
+                else return "";
             }
         }
+
+        public void Use(Character user)
+        {
+            OnUse(user);
+            if (Durability < 0) return;
+            else
+            {                
+                uses += 1;
+                if (uses >= Durability) { OnBreak(); }
+            }
+        }
+
+        protected abstract void OnUse(Character user);
+
+        protected abstract void OnBreak();
 
         public virtual void Repair()
         {
@@ -81,23 +62,76 @@ namespace TextRPG
         }
     }
 
+    public abstract class Consumable : Item
+    {
+        public override int Durability => 1;
+
+        protected override void OnBreak() { }
+        protected override void OnUse(Character user) { Effect(user); }
+        protected abstract void Effect(Character user);
+    }
+
+    public class Potion : Consumable
+    {
+        public override string Name => "Potion";
+        public override int Value => 30;
+        public override int Weight => 0;
+        protected override void Effect(Character user)
+        {
+            user.CurrentHP = user.MaxHP.Value;
+            Game.Instance.Tale(user.Name + " HP: " + user.CurrentHP);
+        }
+    }
+
+    public abstract class Equipment : Item
+    {
+        protected Character user;
+        public override int Durability => -1;
+        public abstract Character.EquipSlot RequiredSlot { get; }
+
+        protected override void OnUse(Character user) { }
+
+        protected override void OnBreak()
+        {
+            Game.Instance.Tale(Name + " is broken.");
+            user.UnEquip(this);
+        }
+
+        public virtual void OnEquip(Character character)
+        {
+            user = character;
+            character.Speed.SetModifier(-Weight, this);
+        }
+
+        public virtual void OnUnequip(Character character)
+        {
+            user = null;
+            foreach (Stat stat in character.stats)
+                stat.RemoveModifierFromSource(this);
+        }        
+    }
+
     public abstract class Weapon : Equipment
     {
         public enum DamageType { Slashing, Bludgeoning, Piercing, None }
-
         public abstract DamageType DmgType { get; } // Type of damage (Slashing, Piercing, ecc.)
         public abstract DamageType Weakness { get; }
         public abstract int Attack { get; }
-        public virtual int RndRange { get; set; } // Amount of random in damage
-        public virtual int Precision { get; set; } // Chances of hitting the target (%)
+        public abstract int RndRange { get; } // Amount of random in damage
+        public abstract int Precision { get; } // Chances of hitting the target (%)
+        public abstract int Critical { get; } // Chances of critical hit (%)
         public virtual Action<Character, Character> CustomEffects { get { return (user, target) => { }; } }
-
         public override Character.EquipSlot RequiredSlot => Character.EquipSlot.Weapon;
 
-        public override void Equip(Character character)
+        public override void OnEquip(Character character)
         {
-            base.Equip(character);
+            base.OnEquip(character);
             character.Attack.SetModifier(Attack, this);
+        }
+
+        public virtual void OnHit(Character user, Character target)
+        {
+            CustomEffects(user, target);
         }
     }
 
@@ -108,14 +142,16 @@ namespace TextRPG
         public override string Name => "";
         public override int Value => 0;
         public override int Attack => 0;
-        public override int RndRange { get; set; }
-        public override int Precision { get; set; }
-        public override int Speed => 0;
+        public override int RndRange { get; }
+        public override int Precision { get; }
+        public override int Critical { get; }
+        public override int Weight => 0;
 
-        public NaturalWeapon(int rndRange, int precision)
+        public NaturalWeapon(int rndRange, int precision, int critical = 10)
         {
             RndRange = rndRange;
             Precision = precision;
+            Critical = critical;
         }
     }
 
@@ -123,35 +159,39 @@ namespace TextRPG
     {
         public override DamageType DmgType => DamageType.Slashing;
         public override DamageType Weakness => DamageType.Piercing;
-        public override int RndRange => 10;
+        public override int RndRange => 5;
         public override int Precision => 90;
-        public override int Speed => 0;
+        public override int Critical => 10;
+        public override int Weight => 3;
     }
 
     public abstract class Spear : Weapon
     {
         public override DamageType DmgType => DamageType.Piercing;
         public override DamageType Weakness => DamageType.Bludgeoning;
-        public override int RndRange => 20;
+        public override int RndRange => 10;
         public override int Precision => 85;
-        public override int Speed => -5;
+        public override int Critical => 10;
+        public override int Weight => 3;
     }
 
     public abstract class Hammer : Weapon
     {
         public override DamageType DmgType => DamageType.Bludgeoning;
         public override DamageType Weakness => DamageType.Slashing;
-        public override int RndRange => 30;
+        public override int RndRange => 15;
         public override int Precision => 80;
-        public override int Speed => -10;
+        public override int Critical => 20;
+        public override int Weight => 5;
     }
 
     public abstract class Armor : Equipment
     {
         public abstract int Defense { get; }
-        public override void Equip(Character character)
+
+        public override void OnEquip(Character character)
         {
-            base.Equip(character);
+            base.OnEquip(character);
             character.Defense.SetModifier(Defense, this);
         }
     }
@@ -165,11 +205,14 @@ namespace TextRPG
     {
         public override Character.EquipSlot RequiredSlot => Character.EquipSlot.Shield;
         public override int Durability => 3;
+        public override int Weight => 2;
+        public override int Defense => 0;
     }
 
     public abstract class Accessory : Equipment
     {
         public override Character.EquipSlot RequiredSlot => Character.EquipSlot.Accessory;
+        public override int Weight => 0;
     }
     #endregion
 
@@ -181,7 +224,6 @@ namespace TextRPG
     public abstract class Spell
     {
         public enum ElementType { Earth, Water, Fire, Air, None }
-
         public abstract string Name { get; }
         public abstract int Damage { get; }
         public abstract ElementType Element { get; }
@@ -198,12 +240,7 @@ namespace TextRPG
     public class Stat
     {
         private int baseValue;
-        public Dictionary<Equipment, int> modifiers = new Dictionary<Equipment, int>();
-
-        public void SetBaseValue(int baseValue)
-        {
-            this.baseValue = baseValue;
-        }
+        private Dictionary<Equipment, int> modifiers = new Dictionary<Equipment, int>();
 
         public int Value
         {
@@ -214,6 +251,11 @@ namespace TextRPG
                     finalValue += mod.Value;
                 return finalValue;
             }
+        }
+
+        public void SetBaseValue(int baseValue)
+        {
+            this.baseValue = baseValue;
         }
 
         public void SetModifier(int mod, Equipment source)
@@ -232,22 +274,20 @@ namespace TextRPG
 
     public abstract class Character
     {
-        public static int BaseUnarmedCombatDamage = 10;
-
-        //public int level = 1;
         protected int damage; // Amount of damage taken so far
+        public readonly Stat[] stats; // Collection of character's stats
+        protected SortedDictionary<EquipSlot, Equipment> equipment = new SortedDictionary<EquipSlot, Equipment>(); // Dictionary from slot name to item class instance
+        protected List<Spell> spellbook = new List<Spell>(); // Known spells
+        //public int level = 1;
 
+        public enum EquipSlot { Head, Body, Shield, Weapon, Accessory }
         public abstract string Name { get; } // Total hit points
         public Stat MaxHP { get; } = new Stat(); // Total hit points
         public Stat Attack { get; } = new Stat();
         public Stat Defense { get; } = new Stat();
         public Stat Speed { get; } = new Stat();
-        public Stat[] stats;
         public abstract Spell.ElementType ElementWeakness { get; }
         public abstract Spell.ElementType ElementResistance { get; }
-        public enum EquipSlot { Head, Body, Shield, Weapon, Accessory }
-        public readonly SortedDictionary<EquipSlot, Equipment> equipment = new SortedDictionary<EquipSlot, Equipment>(); // Dictionary from slot name to item class instance
-        protected List<Spell> spellbook = new List<Spell>(); // Known spells
         public List<Spell> Spellbook { get => spellbook; }
         protected NaturalWeapon NaturalWeapon { get; set; } = new NaturalWeapon(15, 90);
         public int CurrentHP
@@ -274,7 +314,7 @@ namespace TextRPG
                     return NaturalWeapon;
             }
         }
-
+        public Equipment[] EquippedItems { get { return equipment.Values.ToArray(); } }
         public Character() // Characters initialization
         {
             stats = new Stat[] { Attack, Defense, Speed };
@@ -302,12 +342,40 @@ namespace TextRPG
             }
         }
 
-        public virtual string ShowStatus()
+        public virtual void ShowStatus()
         {
-            return Name + " - HP: " + CurrentHP.ToString();
+            Game.Instance.Tale(Name + " - HP: " + CurrentHP.ToString());
         }
 
         protected abstract string LogAction(string actionName);
+        public Equipment GetEquipment(EquipSlot slot)
+        {
+            return equipment[slot];
+        }
+
+        public virtual void Equip(Equipment newEquip, bool silent = false)
+        {
+            if (equipment.ContainsKey(newEquip.RequiredSlot))
+                equipment[newEquip.RequiredSlot] = newEquip;
+            else
+                equipment.Add(newEquip.RequiredSlot, newEquip);
+
+            newEquip.OnEquip(this);
+
+            if (!silent)
+                Game.Instance.Tale("Equipped " + newEquip.Name);
+        }
+
+        public virtual void UnEquip(Equipment newEquip, bool silent = false)
+        {
+            equipment[newEquip.RequiredSlot].OnUnequip(this);
+
+            if (equipment.ContainsKey(newEquip.RequiredSlot))
+                equipment.Remove(newEquip.RequiredSlot);
+
+            if (!silent)
+                Game.Instance.Tale("Unequipped " + newEquip.Name);
+        }
 
         public virtual void TakeDamage(int damage, string description = "")
         {
@@ -317,10 +385,14 @@ namespace TextRPG
             if (this.damage > MaxHP.Value) { this.damage = MaxHP.Value; } // Prevent damage bigger than MaxHP
         }
 
+        public virtual void OnGetHit(int damage)
+        {
+            TakeDamage(damage);
+        }
+
         protected void WeaponAttack(Character target)
         {
             Weapon weapon = ActiveWeapon;
-
             string attackLog = LogAction("attack") + " " + target.Name;
             if (!(weapon is NaturalWeapon)) { attackLog += " with " + weapon.Name; }
             Game.Instance.Tale(attackLog);
@@ -328,38 +400,43 @@ namespace TextRPG
             Random rnd = new Random();
             int hitRoll = rnd.Next(1, 100);
             bool hit = hitRoll <= weapon.Precision - target.Speed.Value;
-            bool critical = hitRoll > 90;
+            bool critical = hitRoll > (100 - weapon.Critical);
             if (hit)
             {
+                // Damage calculations
                 int attackValue = rnd.Next(Attack.Value - weapon.RndRange, Attack.Value + weapon.RndRange + 1);
-                int damage = PhysicalDamage(attackValue - target.Defense.Value, weapon.DmgType, target);
+                int damage = PhysicalDamage(attackValue - target.Defense.Value, weapon.DmgType, target.ActiveWeapon.Weakness);
                 if (critical) { damage *= 3; Game.Instance.Tale("CRITICAL HIT!"); } // Apply critical bonus
-                target.TakeDamage(damage);
-                weapon.CustomEffects(this, target);
-                weapon.WearOut();
+                
+                // Events call
+                target.OnGetHit(damage);
+                weapon.OnHit(this, target);
+                weapon.Use(this);
             }
             else { Game.Instance.Tale("The attack misses..."); }
         }
 
-        public static int PhysicalDamage(int atkDamage, Weapon.DamageType userType, Character target)
+        public static int PhysicalDamage(int atkDamage, Weapon.DamageType userType, Weapon.DamageType targetWeakness)
         {
-            Weapon targetWeapon = target.ActiveWeapon as Weapon;
-            if (targetWeapon.Weakness == userType)
+            bool weaponAdvantage = targetWeakness == userType;
+            //bool useShield = false;            
+            if (weaponAdvantage)
             {
-                Game.Instance.Tale("Weapon Advantage!");
-                if (target.equipment.ContainsKey(EquipSlot.Shield))
-                {
-                    Shield targetShield = target.equipment[EquipSlot.Shield] as Shield;
-                    Game.Instance.Tale("The shield softens the blow.");
-                    targetShield.WearOut();
-                }
-                else
-                {
-                    atkDamage = (int)(atkDamage * 1.5f); // Apply weapon weakness
-                }
+                Game.Instance.Tale("Weapon Advantage!"); // Alert for weapon advantage
+                atkDamage = (int)(atkDamage * 1.5f); // Apply weapon weakness
+
+                // Ask to use the shield if target has a shield
+                //if (target.equipment.ContainsKey(EquipSlot.Shield))
+                //    useShield = target.UseShield();
+                //if (useShield)
+                //    target.equipment[EquipSlot.Shield].WearOut();
+                //else
+                //    atkDamage = (int)(atkDamage * 1.5f); // Apply weapon weakness
             }
             return atkDamage;
         }
+
+        //public virtual bool UseShield() { return false; }
 
         public virtual void LearnSpell(Spell spell, bool silent = false)
         {
@@ -394,11 +471,12 @@ namespace TextRPG
             return spellDamage;
         }
 
-        public virtual void DrinkPotion()
+        protected abstract void DrinkPotion();
+
+        public virtual void UseConsumable(Consumable consumable)
         {
-            Game.Instance.Tale(LogAction("drink") + " a Potion");
-            damage = 0;
-            Game.Instance.Tale(Name + " HP: " + CurrentHP);
+            Game.Instance.Tale(LogAction("drink") + " " + consumable.Name);
+            consumable.Use(this);
         }
 
         public enum BattleOutcome { Continue, Win, Lose }
@@ -453,12 +531,12 @@ namespace TextRPG
     public class Player : Character
     {
         protected int manaPoints = 1;
+        protected int inventoryCapability = 7;
+        protected readonly List<Item> inventory = new List<Item>();
+
         public override string Name => "You";
         public override Spell.ElementType ElementWeakness => Spell.ElementType.None;
         public override Spell.ElementType ElementResistance => Spell.ElementType.None;
-        protected List<Item> Inventory { get; set; } = new List<Item>();
-        public Item[] AllItems { get { return equipment.Values.Concat(Inventory).ToArray(); } }
-        public Equipment[] AllEquipment { get { return equipment.Values.Concat(Inventory.Where(x => x is Equipment).ToList().ConvertAll(y => y as Equipment)).ToArray(); } }
         public Stat MaxManaPoints { get; } = new Stat();
         public int CurrentManaPoints
         {
@@ -470,13 +548,32 @@ namespace TextRPG
                     manaPoints = MaxManaPoints.Value;
             }
         }
+        public Item[] Inventory {get {return inventory.ToArray(); } }
+        public List<string> InventoryNames { get { return inventory.ConvertAll(x => x.Name); } }
+        public Item[] AllItems { get { return equipment.Values.Concat(inventory).ToArray(); } }
+        public List<string> AllItemsNames { get { return AllItems.ToList().ConvertAll(x => x.Name); } }        
+        public Equipment[] AllEquipment { get { return equipment.Values.Concat(inventory.Where(x => x is Equipment).ToList().ConvertAll(y => y as Equipment)).ToArray(); } }
+        public List<string> AllEquipmentNames { get { return AllEquipment.ToList().ConvertAll(x => x.Name); } }
+        public EquipSlot[] EquippableSlots
+        {
+            get
+            {
+                List<EquipSlot> slots = new List<EquipSlot>();
+                Equipment[] storedEquips = GetItemsFromInventory<Equipment>().ToArray();
+                foreach (Equipment equip in storedEquips)
+                    if (!slots.Contains(equip.RequiredSlot))
+                        slots.Add(equip.RequiredSlot);
+                return slots.ToArray();
+            }
+        }
+        public List<string> EquippableSlotsNames { get { return EquippableSlots.ToList().ConvertAll(x => x.ToString()); } }
 
         public Player()
         {
             MaxHP.SetBaseValue(200);
             Attack.SetBaseValue(10);
-            Defense.SetBaseValue(5);
-            Speed.SetBaseValue(5);
+            Defense.SetBaseValue(10);
+            Speed.SetBaseValue(10);
             MaxManaPoints.SetBaseValue(2);
         }
 
@@ -515,8 +612,19 @@ namespace TextRPG
         public override void ChooseBattleAction(Character opponent) // Get player choice on fight
         {
             // Ask the player to choose among available actions
-            ExecuteBattleAction(Game.Instance.ProcessChoice(GetBattleActions()), opponent);
+            ExecuteBattleAction(Game.Instance.ProcessChoice(GetBattleActions(), "Choose your action:"), opponent);
         }
+
+        //public override bool UseShield()
+        //{
+        //    switch (Game.Instance.ProcessChoice(new string[] { "YES", "NO" }, "Use the Shield?"))
+        //    {
+        //        case 0:
+        //            Game.Instance.Tale("The shield softens the blow.");
+        //            return true;
+        //        default: return false;
+        //    }
+        //}
 
         protected override void ExecuteBattleAction(int actionID, Character opponent)
         {
@@ -525,7 +633,7 @@ namespace TextRPG
             switch (GetBattleActions()[actionID])
             {
                 case "Change Weapon":
-                    ChangeEquipment(ChooseItemFromList<Equipment>(GetEquipmentFromInventory(EquipSlot.Weapon)));
+                    EquipFromInventory(ChooseItemFromList<Equipment>(GetEquipmentFromInventory(EquipSlot.Weapon)));
                     break;
                 default:
                     break;
@@ -559,13 +667,16 @@ namespace TextRPG
             CastSpell(spell, target);
         }
 
-        public override void DrinkPotion()
+        protected override void DrinkPotion()
         {
-            Item[] potions = GetItemsFromInventory("Potion").ToArray();
-            if (potions.Length >= 1)
+            List<Potion> potions = GetItemsFromInventory<Potion>();
+            if (potions.Count >= 1)
             {
-                base.DrinkPotion();
-                RemoveFromInventory(GetItemsFromInventory("Potion")[0]);
+                string[] choices = potions.ConvertAll(x => x.Name).ToArray();
+                int choice = Game.Instance.ProcessChoice(choices);
+                Consumable chosenConsumable = potions[choice];
+                base.UseConsumable(chosenConsumable);
+                RemoveFromInventory(chosenConsumable);
             }
             else
                 Game.Instance.Tale("There are no Potions in your inventory...");
@@ -573,35 +684,61 @@ namespace TextRPG
 
         public void AddToInventory(Item item, bool silent = false)
         {
-            if (Inventory.Count <= 10)
+            if (inventory.Count < inventoryCapability)
             {
-                Inventory.Add(item);
+                inventory.Add(item);
                 if (!silent)
                     Game.Instance.Tale(item.Name + " added to the inventory.");
             }
-            else if (!silent)
+            else
+            {
                 Game.Instance.Tale("You cannot take " + item.Name + ": inventory is full.");
+                switch (Game.Instance.ProcessChoice
+                    (new string[] { "YES", "NO" },
+                    "Drop an item to free space?"))
+                {
+                    case 0: AskDropItem(); break;
+                    case 1: break;
+                }
+            }
         }
 
-        public void RemoveFromInventory(Item item)
+        public bool RemoveFromInventory(Item item)
         {
-            Inventory.Remove(item);
+            if (inventory.Contains(item))
+            {
+                inventory.Remove(item);
+                //Game.Instance.Tale(item.Name + " removed from the inventory.");
+                return true;
+            }
+            else
+                return false;
         }
 
-        public List<Item> GetItemsFromInventory<itemType>() where itemType : Item
+        protected void AskDropItem()
         {
-            // Get list of EquipType type of items in inventory
-            List<itemType> foundItems = new List<itemType>();
-            foreach (Item item in Inventory)
-                if (item is itemType) { foundItems.Add(item as itemType); }
+            List<string> choices = InventoryNames;
+            choices.Add("Back");
+            int choice = Game.Instance.ProcessChoice(choices.ToArray(),
+                "Which item do you want to drop?");
+            if (choice != choices.Count - 1)
+            {
+                Item droppingItem = inventory[choice];
+                RemoveFromInventory(droppingItem);
+                Game.Instance.Tale("Dropped " + droppingItem.Name);
+            }
+        }
 
-            return foundItems as List<Item>;
+        public List<itemType> GetItemsFromInventory<itemType>() where itemType : Item
+        {
+            List<itemType> foundItems = inventory.Where(x => x is itemType).ToList().ConvertAll(x => x as itemType);
+            return foundItems;
         }
         public List<Item> GetItemsFromInventory(string name)
         {
             // Get list of EquipType type of items in inventory
             List<Item> foundItems = new List<Item>();
-            foreach (Item item in Inventory)
+            foreach (Item item in inventory)
                 if (item.Name == name) { foundItems.Add(item); }
 
             return foundItems;
@@ -611,7 +748,7 @@ namespace TextRPG
         {
             // Get list of EquipType type of items in inventory
             List<Equipment> availableEquips = new List<Equipment>();
-            foreach (Item item in Inventory)
+            foreach (Item item in inventory)
                 if (item is Equipment)
                 {
                     Equipment equip = item as Equipment;
@@ -622,24 +759,88 @@ namespace TextRPG
             return availableEquips;
         }
 
+        public Equipment GetEquipment(string name)
+        {
+            foreach (Equipment equip in AllEquipment)
+                if (equip.Name == name)
+                    return equip;
+            return null;
+        }
+
         public ItemType ChooseItemFromList<ItemType>(List<ItemType> availableItems) where ItemType : Item
         {
             int choice = Game.Instance.ProcessChoice(availableItems.ConvertAll(x => x.Name).ToArray());
             return availableItems[choice];
         }
 
-        public void ChangeEquipment(Equipment newEquip)
+        protected void EquipFromInventory(Equipment newEquip)
         {
+            if (!inventory.Contains(newEquip))
+            {
+                Console.WriteLine("Cannot equip " + newEquip.Name + ": not in Inventory");
+                return;
+            }
+
             RemoveFromInventory(newEquip);
             if (equipment.ContainsKey(newEquip.RequiredSlot))
             {
                 Equipment oldEquip = equipment[newEquip.RequiredSlot];
                 AddToInventory(oldEquip);
-                oldEquip.Unequip(this);
+                UnEquip(oldEquip, silent: true);
             }
-            newEquip.Equip(this);
+            Equip(newEquip);
+        }
 
-            Game.Instance.Tale("Equipped " + newEquip.Name);
+        // Find equipment and ask what to do
+        public virtual void FindEquipment(Equipment newEquip)
+        {
+            foreach (Equipment equip in AllEquipment)
+                if (equip.Name == newEquip.Name)
+                {
+                    equip.Repair();
+                    Game.Instance.Tale("Replaced " + newEquip.Name + " with a new one.");
+                    
+                    if (equipment.ContainsValue(equip))
+                        return; // In this case, there's no need to ask to equip it
+                }
+            if (equipment.ContainsKey(newEquip.RequiredSlot))
+            {
+                switch (Game.Instance.ProcessChoice
+                    (new string[] { "YES", "NO" },
+                    "Replace " + equipment[newEquip.RequiredSlot] + " with " + newEquip.Name + "?"))
+                {
+                    case 0:
+                        AddToInventory(equipment[newEquip.RequiredSlot]);
+                        Equip(newEquip);
+                        break;
+                    case 1: break;
+                }
+            }
+            else
+            {
+                switch (Game.Instance.ProcessChoice
+                    (new string[] { "YES", "NO" },
+                    "Equip the " + newEquip.Name + "?"))
+                {
+                    case 0: Equip(newEquip); break;
+                    case 1: AddToInventory(newEquip); break;
+                }
+            }
+        }
+
+        // Process choices to change equipped items
+        protected void ChangeEquipment()
+        {
+            if (EquippableSlots.Length < 1)
+            {
+                Game.Instance.Tale("You have no equippable items in your inventory.");
+                return;
+            }
+
+            int chosenSlot = Game.Instance.ProcessChoice(EquippableSlotsNames.ToArray());
+            List<Equipment> equipsToChoose = GetEquipmentFromInventory(EquippableSlots[chosenSlot]);
+            int chosenEquip = Game.Instance.ProcessChoice(equipsToChoose.ConvertAll(x => x.Name).ToArray());
+            EquipFromInventory(equipsToChoose[chosenEquip]);
         }
     }
 
@@ -649,7 +850,7 @@ namespace TextRPG
         {
             if (equip != null)
                 foreach (KeyValuePair<EquipSlot, Equipment> e in equip)
-                    e.Value.Equip(this);
+                    Equip(e.Value, silent: true);
             //else
             //    equipment[EquipSlot.Weapon] = NaturalWeapon;
 
@@ -675,7 +876,23 @@ namespace TextRPG
             ExecuteBattleAction(rnd.Next(0, actions.Length), enemy);
         }
 
+        //public override bool UseShield()
+        //{
+        //    Random rnd = new Random();
+        //    if (rnd.Next(0, 99) < 80)
+        //    {
+        //        Game.Instance.Tale(Name + " protects himself with a shield.");
+        //        return true;
+        //    }                
+        //    else return false;
+        //}
+
         protected override void ChooseSpell(Character target)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override void DrinkPotion()
         {
             throw new NotImplementedException();
         }
@@ -719,6 +936,96 @@ namespace TextRPG
         {
             this.faces = faces;
             this.quantity = quantity;
+        }
+    }
+
+    public class Music
+    {
+        public virtual Note[] Tune => new Note[]
+        {
+            new Note(Tone.B, Duration.QUARTER),
+            new Note(Tone.A, Duration.QUARTER),
+            new Note(Tone.GbelowC, Duration.QUARTER),
+            new Note(Tone.A, Duration.QUARTER),
+            new Note(Tone.B, Duration.QUARTER),
+            new Note(Tone.B, Duration.QUARTER),
+            new Note(Tone.B, Duration.HALF),
+            new Note(Tone.A, Duration.QUARTER),
+            new Note(Tone.A, Duration.QUARTER),
+            new Note(Tone.A, Duration.HALF),
+            new Note(Tone.B, Duration.QUARTER),
+            new Note(Tone.D, Duration.QUARTER),
+            new Note(Tone.D, Duration.HALF)
+        };
+
+        //Thread musicThread;
+
+        public Music()
+        {
+            Play();
+            //musicThread = new Thread(Play);
+            //musicThread.Start();
+        }
+
+        // Play the notes in a song.
+        public void Play()
+        {
+            foreach (Note n in Tune)
+            {
+                if (n.NoteTone == Tone.REST)
+                    Thread.Sleep((int)n.NoteDuration);
+                else
+                    Console.Beep((int)n.NoteTone, (int)n.NoteDuration);
+            }
+        }
+
+        // Define the frequencies of notes in an octave, as well as
+        // silence (rest).
+        public enum Tone
+        {
+            REST = 0,
+            GbelowC = 196,
+            A = 220,
+            Asharp = 233,
+            B = 247,
+            C = 262,
+            Csharp = 277,
+            D = 294,
+            Dsharp = 311,
+            E = 330,
+            F = 349,
+            Fsharp = 370,
+            G = 392,
+            Gsharp = 415,
+        }
+
+        // Define the duration of a note in units of milliseconds.
+        public enum Duration
+        {
+            WHOLE = 1600,
+            HALF = WHOLE / 2,
+            QUARTER = HALF / 2,
+            EIGHTH = QUARTER / 2,
+            SIXTEENTH = EIGHTH / 2,
+        }
+
+        // Define a note as a frequency (tone) and the amount of
+        // time (duration) the note plays.
+        public struct Note
+        {
+            Tone toneVal;
+            Duration durVal;
+
+            // Define a constructor to create a specific note.
+            public Note(Tone frequency, Duration time)
+            {
+                toneVal = frequency;
+                durVal = time;
+            }
+
+            // Define properties to return the note's tone and duration.
+            public Tone NoteTone { get { return toneVal; } }
+            public Duration NoteDuration { get { return durVal; } }
         }
     }
 
@@ -775,6 +1082,7 @@ namespace TextRPG
         protected readonly SortedList<string, Scene> scenes = new SortedList<string, Scene>();  // List of all scenes
         protected string sceneToLoad;
         protected List<string> achievements = new List<string>();
+
         protected abstract Player Player { get; }
         protected abstract string StartScene { get; }
 
@@ -798,7 +1106,7 @@ namespace TextRPG
             if (stop) { WaitInput(); }
         }
 
-        public virtual int ProcessChoice(string[] choices)
+        public virtual int ProcessChoice(string[] choices, string prompt = "")
         {
             int InvalidInput()
             {
@@ -812,7 +1120,8 @@ namespace TextRPG
                 choiceOutput += (i + 1).ToString() + ": " + choices[i] + "\n"; // PS: Choices start from 1
             }
 
-            Tale("Choose your action:\n", stop: false);
+            if (prompt != "") { prompt = "\n" + prompt; }
+            Console.Write(prompt + "\n");
             Console.WriteLine(choiceOutput);
             string answer = Console.ReadLine();
             int parsedAnswer;
@@ -842,9 +1151,9 @@ namespace TextRPG
                 Achievements = achievements,
                 PlayerHP = Player.CurrentHP,
                 PlayerMana = Player.CurrentManaPoints,
-                PlayerInventory = Player.GetItemsFromInventory<Item>().ConvertAll(x => x.GetType().ToString()),
-                PlayerEquipment = Player.equipment.Values.ToList().ConvertAll(x => x.GetType().ToString()),
-                DurabilityUsages = Player.AllEquipment.ToList().ConvertAll(x => x.Uses),
+                PlayerInventory = Player.Inventory.ToList().ConvertAll(x => x.GetType().ToString()),
+                PlayerEquipment = Player.EquippedItems.ToList().ConvertAll(x => x.GetType().ToString()),
+                DurabilityUsages = Player.AllItems.ToList().ConvertAll(x => x.Uses),
                 Spellbook = Player.Spellbook.ConvertAll(x => x.GetType().ToString()),
             });
             File.WriteAllText(fileName, jsonString);
@@ -867,12 +1176,12 @@ namespace TextRPG
             foreach (string equipName in saveGame.PlayerEquipment)
             {
                 Type equipClass = Type.GetType(equipName);
-                Equipment equipment = Activator.CreateInstance(equipClass) as Equipment;
-                equipment.Equip(Player);
+                Equipment equip = Activator.CreateInstance(equipClass) as Equipment;
+                Player.Equip(equip, silent: true);
             }
-            Equipment[] allEquips = Player.AllEquipment;
+            Item[] allItems = Player.AllItems;
             for (int i = 0; i < saveGame.DurabilityUsages.Count; i++)
-                allEquips[i].Uses = saveGame.DurabilityUsages[i];
+                allItems[i].Uses = saveGame.DurabilityUsages[i];
             foreach (string spellName in saveGame.Spellbook)
             {
                 Type spellClass = Type.GetType(spellName);
