@@ -1128,7 +1128,7 @@ namespace TextRPG
             if (int.TryParse(answer, out parsedAnswer))
             {
                 parsedAnswer -= 1; // Choices start from 1
-                if (parsedAnswer < 0 || parsedAnswer > choices.Length)
+                if (parsedAnswer < 0 || parsedAnswer >= choices.Length)
                 {
                     return InvalidInput();
                 }
