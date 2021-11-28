@@ -104,6 +104,7 @@ public class RustySword : Sword
     public override int Value => 3;
     public override int Attack => 20;
     public override int Durability => 10;
+    public override int Critical => 25;
 }
 
 public class Dagger : Sword
@@ -404,6 +405,7 @@ class MyGame : Game
 
     protected override void MainMenu()
     {
+    StartMenu:
         //new Thread(() => new IntroTheme()).Start();
         Tale("Welcome to this Text Role-Playing Game!");
         switch (ProcessChoice(new string[]
@@ -427,7 +429,7 @@ class MyGame : Game
                     }))
                     {
                         case 0: File.Delete(SavePath); break;
-                        case 1: MainMenu(); break;
+                        case 1: goto StartMenu;
                     }
                 }
                 Tale("Starting new game");
@@ -443,17 +445,17 @@ class MyGame : Game
                 else
                 {
                     Tale("There's no save file to load");
-                    MainMenu();
+                    goto StartMenu;
                 }
                 break;
             case 2:
                 Tale("This game was realized by Sprintingkiwi: https://github.com/sprintingkiwi/TextRPG");
                 Tale("You can use this game library TextRPG.cs to program your own text RPG game");
-                MainMenu(); break;
+                goto StartMenu;
             case 3: Environment.Exit(0); break;
             case 4:
-                BattleTest();                
-                MainMenu(); break;
+                BattleTest();
+                goto StartMenu;
         }
     }
         

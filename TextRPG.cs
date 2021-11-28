@@ -113,7 +113,7 @@ namespace TextRPG
 
     public abstract class Weapon : Equipment
     {
-        public enum DamageType { Slashing, Bludgeoning, Piercing, None }
+        public enum DamageType { Slashing, Bludgeoning, Piercing, Natural, None }
         public abstract DamageType DmgType { get; } // Type of damage (Slashing, Piercing, ecc.)
         public abstract DamageType Weakness { get; }
         public abstract int Attack { get; }
@@ -137,7 +137,7 @@ namespace TextRPG
 
     public class NaturalWeapon : Weapon
     {
-        public override DamageType DmgType => DamageType.None;
+        public override DamageType DmgType => DamageType.Natural;
         public override DamageType Weakness => DamageType.None;
         public override string Name => "";
         public override int Value => 0;
@@ -397,15 +397,18 @@ namespace TextRPG
             if (!(weapon is NaturalWeapon)) { attackLog += " with " + weapon.Name; }
             Game.Instance.Tale(attackLog);
 
+            // Random rolls
             Random rnd = new Random();
             int hitRoll = rnd.Next(1, 100);
-            bool hit = hitRoll <= weapon.Precision - target.Speed.Value;
-            bool critical = hitRoll > (100 - weapon.Critical);
+            bool hit = hitRoll >= 100 - weapon.Precision + target.Speed.Value;
+            bool critical = hitRoll >= (100 - weapon.Critical);
+            
             if (hit)
             {
                 // Damage calculations
                 int attackValue = rnd.Next(Attack.Value - weapon.RndRange, Attack.Value + weapon.RndRange + 1);
-                int damage = PhysicalDamage(attackValue - target.Defense.Value, weapon.DmgType, target.ActiveWeapon.Weakness);
+                if (!critical) { attackValue -= target.Defense.Value; }
+                int damage = PhysicalDamage(attackValue, weapon.DmgType, target.ActiveWeapon.Weakness);
                 if (critical) { damage *= 3; Game.Instance.Tale("CRITICAL HIT!"); } // Apply critical bonus
                 
                 // Events call
@@ -511,7 +514,7 @@ namespace TextRPG
                 }
                 playerTurn = !playerTurn;
             }
-            Console.WriteLine("Battle ended");
+            Game.Instance.Tale("Battle ended");
 
             if (callback == null)
                 return ManageBattleOutcome(outcome, enemy);
@@ -777,7 +780,7 @@ namespace TextRPG
         {
             if (!inventory.Contains(newEquip))
             {
-                Console.WriteLine("Cannot equip " + newEquip.Name + ": not in Inventory");
+                Game.Instance.Tale("Cannot equip " + newEquip.Name + ": not in Inventory");
                 return;
             }
 
@@ -1096,14 +1099,19 @@ namespace TextRPG
             return Console.ReadLine();
         }
 
-        public virtual void Tale(string text, bool stop = true)
+        public virtual void Tale(string text, bool stop = true, bool progressive = true)
         {
-            foreach (char c in text)
-            {
-                Console.Write(c);
-                Thread.Sleep(3);
-            }
+            if (progressive)
+                foreach (char c in text)
+                {
+                    Console.Write(c);
+                    Thread.Sleep(3);
+                }
+            else
+                Console.Write(text);
+
             if (stop) { WaitInput(); }
+            else { Console.Write("\n"); }
         }
 
         public virtual int ProcessChoice(string[] choices, string prompt = "")
