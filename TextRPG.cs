@@ -636,7 +636,10 @@ namespace TextRPG
             switch (GetBattleActions()[actionID])
             {
                 case "Change Weapon":
-                    EquipFromInventory(ChooseItemFromList<Equipment>(GetEquipmentFromInventory(EquipSlot.Weapon)));
+                    if (GetEquipmentFromInventory(EquipSlot.Weapon).Count > 0)
+                        EquipFromInventory(ChooseItemFromList(GetEquipmentFromInventory(EquipSlot.Weapon)));
+                    else
+                        Game.Instance.Tale("You don't have any weapon in your inventory.");
                     break;
                 default:
                     break;
