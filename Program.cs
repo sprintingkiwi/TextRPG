@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Text.Json;
 using System.IO;
 using TextRPG;
 
@@ -398,9 +395,29 @@ class MyGame : Game
     void Rest()
     {
         Player.CurrentHP = Player.MaxHP.Value;
-        Save();
+        Save(SavePath);
         Tale("You have recovered your energy.");
         Tale("You saved the game.");
+    }
+
+    void UpgradeStat()
+    {
+        Tale("What do you want to improve?");
+        switch (ProcessChoice(new string[]
+            {
+                "Attack",
+                "Defense",
+                "Speed",
+                "Stamina",
+                "Mana",
+            }))
+        {
+            case 0: Player.Attack.ChangeBaseValue(10); break;
+            case 1: Player.Defense.ChangeBaseValue(10); break;
+            case 2: Player.Speed.ChangeBaseValue(10); break;
+            case 3: Player.MaxHP.ChangeBaseValue(50); break;
+            case 4: Player.MaxManaPoints.ChangeBaseValue(1); break;
+        }
     }
 
     protected override void MainMenu()
@@ -492,8 +509,7 @@ class MyGame : Game
 
             Tale("You are walking on a muddy path. After a week of travel, you've finally found a place where you can rest.");
             Tale("A wooden building stands in front of you. An inn of some sort.");
-            Tale("Your name is");
-            Tale("Kros");
+            Tale("Your name is Kros.");
             Tale("A gentle female voice whispers something. A voice you are well used to hear.");
             Tale("JUNO: There there, you'll finally eat some food and get some rest. We have the money to rent a room.");
             Tale("There's no one to be seen where the voice comes from.");
@@ -642,7 +658,7 @@ class MyGame : Game
             Player.LearnSpell(new FireBall());
 
             achievements.Add("Spellcaster"); // The player passed the tutorial
-            Save(); // We can save the game because the player will be able to go back to the Inn anyway
+            Save(SavePath); // We can save the game because the player will be able to go back to the Inn anyway
 
             return "Cave Terror";
         }));
@@ -750,7 +766,7 @@ class MyGame : Game
             Player.Battle(new Wolf());
 
             achievements.Add("Hero");
-            Save();            
+            Save(SavePath);            
             return "After Cave Terror";
         }));
 

@@ -257,6 +257,10 @@ namespace TextRPG
         {
             this.baseValue = baseValue;
         }
+        public void ChangeBaseValue(int deltaValue)
+        {
+            baseValue += deltaValue;
+        }
 
         public void SetModifier(int mod, Equipment source)
         {
@@ -649,7 +653,7 @@ namespace TextRPG
         protected override void ChooseSpell(Character target)
         {
             Game.Instance.Tale("Bind the spell to its name:\n", stop: false);
-            string spellName = Console.ReadLine();
+            string spellName = Game.Instance.WaitInput();
 
             // Check if spell is in spellbook
             Spell spell = null;
@@ -1083,12 +1087,12 @@ namespace TextRPG
     {
         public static Game Instance;
 
-        public const string SavePath = "SaveGame.json";
         protected bool gameOver = false;
         protected readonly SortedList<string, Scene> scenes = new SortedList<string, Scene>();  // List of all scenes
         protected string sceneToLoad;
         protected List<string> achievements = new List<string>();
 
+        public virtual string SavePath => "SaveGame.json";
         protected abstract Player Player { get; }
         protected abstract string StartScene { get; }
 
@@ -1134,7 +1138,7 @@ namespace TextRPG
             if (prompt != "") { prompt = "\n" + prompt; }
             Console.Write(prompt + "\n");
             Console.WriteLine(choiceOutput);
-            string answer = Console.ReadLine();
+            string answer = WaitInput();
             int parsedAnswer;
             if (int.TryParse(answer, out parsedAnswer))
             {
@@ -1154,7 +1158,7 @@ namespace TextRPG
             }
         }
 
-        protected virtual void Save(string fileName = SavePath)
+        protected virtual void Save(string fileName)
         {
             string jsonString = JsonSerializer.Serialize(new SaveGame()
             {
@@ -1243,7 +1247,7 @@ namespace TextRPG
 
             Tale("GAME OVER");
             Tale("PRESS A KEY TO CLOSE THE GAME");
-            Console.ReadLine();
+            WaitInput();
         }
     }
     #endregion
