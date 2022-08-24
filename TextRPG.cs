@@ -60,6 +60,21 @@ namespace TextRPG
             if (Durability >= 0)
                 uses = 0;
         }
+
+        [System.Serializable]
+        public class SaveData
+        {
+            public string Type { get; set; }
+            public int Uses { get; set; }
+        }
+        public virtual SaveData GetSaveData()
+        {
+            return new SaveData()
+            {
+                Type = GetType().ToString(),
+                Uses = uses
+            };
+        }
     }
 
     public abstract class Consumable : Item
@@ -229,6 +244,18 @@ namespace TextRPG
         public abstract ElementType Element { get; }
         public virtual int ManaCost => 1;
         public virtual Action<Character, Character> CustomEffects { get { return (user, target) => { }; } }
+
+        public class SaveData
+        {
+            public string Type { get; set; }
+        }
+        public virtual SaveData GetSaveData()
+        {
+            return new SaveData()
+            {
+                Type = GetType().ToString()
+            };
+        }
     }
     #endregion
 
@@ -241,6 +268,12 @@ namespace TextRPG
     {
         private int baseValue;
         private Dictionary<Equipment, int> modifiers = new Dictionary<Equipment, int>();
+        public string Name { get; }
+
+        public Stat(string name)
+        {
+            Name = name;
+        }
 
         public int Value
         {
@@ -274,6 +307,21 @@ namespace TextRPG
         {
             modifiers.Remove(source);
         }
+
+        [System.Serializable]
+        public class SaveData
+        {
+            public string Name { get; set; }
+            public int BaseValue { get; set; }            
+        }
+        public virtual SaveData GetSaveData()
+        {
+            return new SaveData()
+            {
+                BaseValue = baseValue,
+                Name = Name
+            };
+        }
     }
 
     public abstract class Character
@@ -286,10 +334,10 @@ namespace TextRPG
 
         public enum EquipSlot { Head, Body, Shield, Weapon, Accessory }
         public abstract string Name { get; } // Total hit points
-        public Stat MaxHP { get; } = new Stat(); // Total hit points
-        public Stat Attack { get; } = new Stat();
-        public Stat Defense { get; } = new Stat();
-        public Stat Speed { get; } = new Stat();
+        public Stat MaxHP { get; } = new Stat("Hit Points"); // Total hit points
+        public Stat Attack { get; } = new Stat("Attack");
+        public Stat Defense { get; } = new Stat("Defense");
+        public Stat Speed { get; } = new Stat("Speed");
         public abstract Spell.ElementType ElementWeakness { get; }
         public abstract Spell.ElementType ElementResistance { get; }
         public List<Spell> Spellbook { get => spellbook; }
@@ -321,7 +369,7 @@ namespace TextRPG
         public Equipment[] EquippedItems { get { return equipment.Values.ToArray(); } }
         public Character() // Characters initialization
         {
-            stats = new Stat[] { Attack, Defense, Speed };
+            stats = new Stat[] { MaxHP, Attack, Defense, Speed };
         }
 
         protected abstract string[] GetBattleActions();
@@ -533,6 +581,25 @@ namespace TextRPG
             else
                 return enemy;
         }
+
+        [System.Serializable]
+        public class SaveData
+        {
+            public List<Stat.SaveData> Stats { get; set; }
+            public int CurrentHP { get; set; }
+            public List<Item.SaveData> Equipment { get; set; }
+            public List<Spell.SaveData> Spellbook { get; set; }
+        }
+        public virtual SaveData GetSaveData()
+        {
+            return new SaveData()
+            {
+                Stats = stats.ToList().ConvertAll(x => x.GetSaveData()),
+                CurrentHP = CurrentHP,
+                Equipment = EquippedItems.ToList().ConvertAll(x => x.GetSaveData()),
+                Spellbook = Spellbook.ConvertAll(x => x.GetSaveData())
+            };
+        }
     }
 
     public class Player : Character
@@ -544,7 +611,7 @@ namespace TextRPG
         public override string Name => "You";
         public override Spell.ElementType ElementWeakness => Spell.ElementType.None;
         public override Spell.ElementType ElementResistance => Spell.ElementType.None;
-        public Stat MaxManaPoints { get; } = new Stat();
+        public Stat MaxManaPoints { get; } = new Stat("Mana");
         public int CurrentManaPoints
         {
             get { return manaPoints; }
@@ -852,6 +919,29 @@ namespace TextRPG
             int chosenEquip = Game.Instance.ProcessChoice(equipsToChoose.ConvertAll(x => x.Name).ToArray());
             EquipFromInventory(equipsToChoose[chosenEquip]);
         }
+
+        [System.Serializable]
+        public class PlayerSaveData : SaveData
+        {
+            public int CurrentMana { get; set; }
+            public List<Item.SaveData> Inventory { get; set; }
+        }
+        public override SaveData GetSaveData()
+        {
+            SaveData saveData = base.GetSaveData();
+            return new PlayerSaveData
+            {
+                // Get generic character informations
+                Stats = saveData.Stats,
+                CurrentHP = saveData.CurrentHP,
+                Equipment = saveData.Equipment,
+                Spellbook = saveData.Spellbook,
+
+                // Adding player-specific informations
+                CurrentMana = CurrentManaPoints,
+                Inventory = Inventory.ToList().ConvertAll(x => x.GetSaveData())
+            };
+        }
     }
 
     public abstract class Enemy : Character
@@ -1063,19 +1153,6 @@ namespace TextRPG
             return result;
         }
     }
-
-    [System.Serializable]
-    public class SaveGame
-    {
-        public string SceneToLoad { get; set; }
-        public List<string> Achievements { get; set; }
-        public int PlayerHP { get; set; }
-        public int PlayerMana { get; set; }
-        public List<string> PlayerInventory { get; set; }
-        public List<string> PlayerEquipment { get; set; }
-        public List<int> DurabilityUsages { get; set; }
-        public List<string> Spellbook { get; set; }
-    }
     #endregion
 
 
@@ -1158,18 +1235,21 @@ namespace TextRPG
             }
         }
 
+        [System.Serializable]
+        public class SaveGame
+        {
+            public string SceneToLoad { get; set; }
+            public List<string> Achievements { get; set; }
+            public Player.PlayerSaveData PlayerData { get; set; }
+        }
+
         protected virtual void Save(string fileName)
         {
             string jsonString = JsonSerializer.Serialize(new SaveGame()
             {
                 SceneToLoad = sceneToLoad,
                 Achievements = achievements,
-                PlayerHP = Player.CurrentHP,
-                PlayerMana = Player.CurrentManaPoints,
-                PlayerInventory = Player.Inventory.ToList().ConvertAll(x => x.GetType().ToString()),
-                PlayerEquipment = Player.EquippedItems.ToList().ConvertAll(x => x.GetType().ToString()),
-                DurabilityUsages = Player.AllItems.ToList().ConvertAll(x => x.Uses),
-                Spellbook = Player.Spellbook.ConvertAll(x => x.GetType().ToString()),
+                PlayerData = Player.GetSaveData() as Player.PlayerSaveData
             });
             File.WriteAllText(fileName, jsonString);
         }
@@ -1180,27 +1260,27 @@ namespace TextRPG
             SaveGame saveGame = JsonSerializer.Deserialize<SaveGame>(jsonString);
             sceneToLoad = saveGame.SceneToLoad;
             achievements = saveGame.Achievements;
-            Player.CurrentHP = saveGame.PlayerHP;
-            Player.CurrentManaPoints = saveGame.PlayerMana;
-            foreach (string itemName in saveGame.PlayerInventory)
+            Player.CurrentHP = saveGame.PlayerData.CurrentHP;
+            Player.CurrentManaPoints = saveGame.PlayerData.CurrentMana;
+            for (int i=0; i < Player.stats.Count(); i++)
             {
-                Type itemClass = Type.GetType(itemName);
-                Item item = Activator.CreateInstance(itemClass) as Item;
+                Player.stats[i].SetBaseValue(saveGame.PlayerData.Stats[i].BaseValue);
+            }
+            foreach (Item.SaveData itemData in saveGame.PlayerData.Inventory)
+            {
+                Item item = Activator.CreateInstance(Type.GetType(itemData.Type)) as Item;
+                item.Uses = itemData.Uses;
                 Player.AddToInventory(item, silent: true);
             }
-            foreach (string equipName in saveGame.PlayerEquipment)
+            foreach (Item.SaveData equipData in saveGame.PlayerData.Equipment)
             {
-                Type equipClass = Type.GetType(equipName);
-                Equipment equip = Activator.CreateInstance(equipClass) as Equipment;
+                Equipment equip = Activator.CreateInstance(Type.GetType(equipData.Type)) as Equipment;
+                equip.Uses = equipData.Uses;
                 Player.Equip(equip, silent: true);
             }
-            Item[] allItems = Player.AllItems;
-            for (int i = 0; i < saveGame.DurabilityUsages.Count; i++)
-                allItems[i].Uses = saveGame.DurabilityUsages[i];
-            foreach (string spellName in saveGame.Spellbook)
+            foreach (Spell.SaveData spellData in saveGame.PlayerData.Spellbook)
             {
-                Type spellClass = Type.GetType(spellName);
-                Spell spell = Activator.CreateInstance(spellClass) as Spell;
+                Spell spell = Activator.CreateInstance(Type.GetType(spellData.Type)) as Spell;
                 Player.LearnSpell(spell, silent: true);
             }
         }

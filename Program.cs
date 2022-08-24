@@ -765,8 +765,7 @@ class MyGame : Game
 
             Player.Battle(new Wolf());
 
-            achievements.Add("Hero");
-            Save(SavePath);            
+            achievements.Add("Hero");                        
             return "After Cave Terror";
         }));
 
@@ -780,6 +779,7 @@ class MyGame : Game
             Tale("Its lifeless body now lying on the ground...");
             Tale("For a brief moment, no one talks. Only silence, and the smell of roasted meat and burnt fur.");
             Tale("JUNO: Well done, Kros.");
+            Save(SavePath);
             Tale("---");
             Tale("The party then heads out of the cave, walking down the path that leads to the Four Graves Inn.");
             Tale("After nearly an hour of walk, the inn could now be seen in the distance.");
