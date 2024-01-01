@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <ApplicationIcon>Unk.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="TextRPG">
+      <HintPath>..\TextRPG\bin\Debug\netcoreapp3.1\TextRPG.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

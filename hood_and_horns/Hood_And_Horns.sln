@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32802.440
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hood_And_Horns", "Hood_And_Horns.csproj", "{219FEACD-17F8-4934-B2E4-3332A4772CC2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{219FEACD-17F8-4934-B2E4-3332A4772CC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{219FEACD-17F8-4934-B2E4-3332A4772CC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{219FEACD-17F8-4934-B2E4-3332A4772CC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{219FEACD-17F8-4934-B2E4-3332A4772CC2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {393A6F00-CDE0-4C6D-88E6-F9E250637103}
+	EndGlobalSection
+EndGlobal
