@@ -1,0 +1,18 @@
+{
+  "seals": [
+    {
+      "id": "repo-2026-08-17-17-33-47",
+      "sealedAt": "2026-08-17T17:33:47.114Z",
+      "commit": "337d1ab1f873b93a72d1b835aef6918156fecd60",
+      "fileCount": 13,
+      "manifest": "timestamps/repo-2026-08-17-17-33-47.sha256",
+      "sha256": "0f60009a9951134e67f8edf32bda4d037c8d3ec147e61bd97b8d26d57bee26ad",
+      "rfc3161": {
+        "tsq": "timestamps/repo-2026-08-17-17-33-47.tsq",
+        "tsr": "timestamps/repo-2026-08-17-17-33-47.tsr",
+        "tsa": "https://freetsa.org/tsr"
+      },
+      "opentimestamps": null
+    }
+  ]
+}
