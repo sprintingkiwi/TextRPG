@@ -7,8 +7,9 @@ I might write a tutorial in the wiki.
 The official release of my game can be found here: https://sprintingkiwi.itch.io/hood-and-horns
 
 ## Instructions for developers
-In this repositories there are two Visual Studio (2019) solutions.
 * TextRPG is the library
 * hood_and_horns is the actual game
 
-For the game solution to be successfully compiled, the TextRPG library must be compiled first. Then, in the hood_and_horns solution, a reference to the TextRPG.dll compiled file must be added.
+### Build and run
+dotnet build hood_and_horns/Hood_And_Horns.csproj
+dotnet run --project hood_and_horns/Hood_And_Horns.csproj
